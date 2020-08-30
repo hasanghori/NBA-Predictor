@@ -1,5 +1,7 @@
 from openpyxl import load_workbook
-
+import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit
+import numpy as np
 # Notes to Keep in Mind
 # Below is the order in which the game stats are organized
 # ["0:Team", 1:Matchup (featuring team1, team2), 2:Date, 3:Win/Loss, 4:mins, 5:"points", 6:"FGM", 7:"FGA", 8:"FG%", 9:"3PM", 10:"3PA", 11:"3P%", 12:"FTM", 13:"FTA", 14:"OREB", 15:"DREB", 16:"TREB", 17:"AST", 18:"STL", 19:"BLK", 20:"TO", 21:"PF"]
@@ -8,10 +10,14 @@ from openpyxl import load_workbook
 # [1][with either 0 or 2 inside] symbolizes the matchup. O is the main team, 1 is the opponent
 # [5] that is where all the main stats begin from
 
+# Fitting function
+
 def mostImportantStatRunAvg(gamesArray, numGames):  # This element calculates the
     percentWinStat = ["Team", "", "", "", "", int(0), int(0), int(0), int(0), int(0), int(0), int(0), int(0), int(0),
                       int(0), int(0), int(0), int(0), int(0), int(0), int(0), int(
             0)]  # this is an array of all the stats so we can see the individual percentages of choosing who avgs the most for each one
+    statsGraph = [[] for x in range (23)]
+    individualGameStat = [int(0), int(0)]
     totalGame = int(0)
     for team in range(0,
                       30):  # the array that stores games is a 2d list that is sorted in 1 dimension by team (30 teams in NBA) and the other Direction by amount of games played (154)
@@ -24,14 +30,31 @@ def mostImportantStatRunAvg(gamesArray, numGames):  # This element calculates th
                 avgTeam2 = AvgSinceWhen(gamesArray, gamesArray[team][game][2], gamesArray[team][game][1][2],
                                         numGames)  # sorted (All Games, date, team to take avg of, numGames)
                 totalGame = totalGame + 1
+                if avgTeam1[5] == 0 or avgTeam2[5] == 0:
+                    print(gamesArray[team][game][2])
                 for compareStat in range(5, 23):
                     if avgTeam1[compareStat] > avgTeam2[compareStat] and gamesArray[team][game][3] == 'W':
                         percentWinStat[compareStat] = percentWinStat[compareStat] + 1
+                        individualGameStat[0] = avgTeam1[compareStat] - avgTeam2[compareStat]
+                        individualGameStat[1] = 1
                     elif avgTeam1[compareStat] < avgTeam2[compareStat] and gamesArray[team][game][3] == 'L':
                         percentWinStat[compareStat] = percentWinStat[compareStat] + 1
+                        individualGameStat[0] = avgTeam2[compareStat] - avgTeam1[compareStat]
+                        individualGameStat[1] = 1
+                    else:
+                        individualGameStat[1] = 0
+                        individualGameStat[0] = abs(avgTeam1[compareStat] - avgTeam2[compareStat])
+                    if(individualGameStat[0] == 0):
+                        print(avgTeam1[compareStat])
+                        print("team 2")
+                        print(avgTeam2[compareStat])
+                        print(compareStat)
+                    else:
+                        statsGraph[compareStat].append(individualGameStat)
     for x in range(5, 22):
         percentWinStat[x] = round(int(percentWinStat[x]) / int(totalGame), 3)
-    return percentWinStat
+    #print(percentWinStat)
+    return statsGraph
 
 
 def AvgSinceWhen(gamesArray, date, team, numGames):  # takes average over the last 'numGames' from a specific date
@@ -312,9 +335,55 @@ print(gameStatOrder)
 numGames = int(input("What number of games do you want to analyze"))
 print("these are the probabilites if you just used one stat to make your predictions")
 print(gameStatOrder)
-print(mostImportantStatRunAvg(gamesArray, numGames))
+statsGraph = mostImportantStatRunAvg(gamesArray, numGames)
 print("Now we will calculate the probabilites on multiple stats")
 print("This could take a couple mins. Just running an analaysis of games based on your choice")
+
+# Fitting function
+def func(x, a, b):
+    # return a * np.exp(b * x)
+    return a*x+b
+xData = []
+yData = []
+for x in range (5, 23):
+    for y in range(0, len(statsGraph[x])):
+        #print(statsGraph[x][y])
+        xData.append(int(statsGraph[x][y][0]))
+        yData.append(int(statsGraph[x][y][1]))
+
+# Experimental x and y data points
+xData = np.array(xData)
+yData = np.array(yData)
+
+# Plot experimental data points
+for x in range (5, 23):
+    plt.plot(xData[x], yData[x], 'bo', label='experimental-data')
+print("aight cool")
+# Initial guess for the parameters
+initialGuess = [10.0, 1.0]
+
+# Perform the curve-fit
+popt, pcov = curve_fit(func, xData, yData, initialGuess)
+print(popt)
+
+# x values for the fitted function
+xFit = np.arange(0.0, 10.0, 0.1)
+
+# Plot the fitted function
+plt.plot(xFit, func(xFit, *popt), 'r', label='fit params: a=%5.3f, b=%5.3f' % tuple(popt))
+
+plt.xlabel('x')
+plt.ylabel('y')
+plt.legend()
+plt.show()
+
+
+
+
+
+
+
+"""
 bestComboRevised = comboStatsRevized(gamesArray, gameStatOrder, numGames)
 
 for x in range(0, len(bestComboRevised) - 1):
@@ -341,3 +410,4 @@ while answer != "no":
     print(winnerAndPercent[1])
     print("say 'no' if you do not want to continue")
     answer = input("Do you want to go again")
+"""
